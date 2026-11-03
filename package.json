@@ -1,0 +1,15 @@
+{
+  "name": "misetomo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "みせとも（β版）：お店のアプリ。今あるレジの表（CSV）とつないで、タグシールで在庫と防犯。商品を追う・人は追わない。ともはねとつながる",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/"
+  }
+}

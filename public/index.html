@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>みせとも β版</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="top">
+    <span class="brand">🏪 みせとも <span class="beta">β版</span></span>
+    <span class="motto">商品を追う・人は追わない</span>
+    <a class="back" id="back" href="#">← ともはねにもどる</a>
+  </header>
+
+  <!-- 店員さんのスマホに出る知らせ -->
+  <div class="alert-banner" id="banner" role="alert" hidden>
+    <img src="/avatars/fukurou.svg" alt="" width="48" height="48">
+    <p id="banner-text"></p>
+    <button type="button" class="btn small" id="banner-go">知らせを見る</button>
+  </div>
+
+  <main class="page">
+    <section class="card center" id="signin" hidden>
+      <img src="/avatars/mogu.svg" alt="" width="88" height="88">
+      <h1>お店の在庫と防犯を、タグシールで</h1>
+      <p>今あるレジの表（CSV）とつなぐだけ。レジを作りかえなくても使えます。</p>
+      <a class="btn big" id="signin-link" href="#">ともはねでログイン</a>
+      <p class="muted small">はじめてログインした人が店長になります。ほかの人は、店長が認めると使えます。</p>
+    </section>
+
+    <section class="card center" id="waiting" hidden>
+      <img src="/avatars/shiba.svg" alt="" width="88" height="88">
+      <h1><span id="waiting-name"></span>さん、ようこそっす！</h1>
+      <p>店長の承認を待っています。店長に「みせとも に入ったよ」と伝えてください。</p>
+    </section>
+
+    <div id="app" hidden>
+      <nav class="tabs" role="tablist">
+        <button type="button" role="tab" data-tab="stock" aria-selected="true">📦 在庫</button>
+        <button type="button" role="tab" data-tab="alerts">🦉 知らせ <span class="count" id="alert-count" hidden></span></button>
+        <button type="button" role="tab" data-tab="import">🐹 表の取りこみ</button>
+        <button type="button" role="tab" data-tab="sim">📡 読み取り機（まね）</button>
+        <button type="button" role="tab" data-tab="staff" id="tab-staff" hidden>👥 スタッフ</button>
+      </nav>
+
+      <ul class="lines" id="lines" aria-live="polite"></ul>
+
+      <!-- 在庫 -->
+      <section class="card" data-panel="stock">
+        <div class="head-row">
+          <h2>在庫（タグを貼った商品）</h2>
+          <a class="btn ghost small" href="/api/export.csv">表で書き出す</a>
+        </div>
+        <div class="table-wrap">
+          <table class="stock">
+            <thead><tr><th>商品</th><th>値段</th><th>在庫</th><th>うち裏</th><th>発注点</th><th>近い期限</th><th>売れた</th></tr></thead>
+            <tbody id="stock-body"></tbody>
+          </table>
+        </div>
+        <p class="muted small">タグを貼っていない商品は数えません（タグは、ねらわれやすくて高い商品から貼るのがおすすめ）。</p>
+        <form class="inline-form" id="tag-form">
+          <h3>シールを貼った</h3>
+          <label>商品 <select name="jan" class="product-select" required></select></label>
+          <label>枚数 <input name="count" type="number" min="1" max="500" value="5" required></label>
+          <label>賞味期限 <input name="expiry" type="date"></label>
+          <label>置き場所 <select name="place"><option>売り場</option><option>バックヤード</option></select></label>
+          <button class="btn" type="submit">登録</button>
+        </form>
+        <form class="inline-form" id="discard-form">
+          <h3>捨てた（期限切れなど）</h3>
+          <label>商品 <select name="jan" class="product-select" required></select></label>
+          <label>数 <input name="count" type="number" min="1" value="1" required></label>
+          <button class="btn ghost" type="submit">記録</button>
+        </form>
+      </section>
+
+      <!-- 知らせ -->
+      <section class="card" data-panel="alerts" hidden>
+        <h2>出口の知らせ</h2>
+        <div class="guide">
+          <p><strong>知らせが来たら</strong></p>
+          <ol>
+            <li>決めつけない。「レジの読みのこし」がいちばん多い</li>
+            <li>声をかけるなら、ていねいに：「お会計がまだのようでしたら、こちらでお願いできますか」</li>
+            <li>つかまえる・問いつめるは、しない。むずかしいときは、店長か警察に</li>
+            <li>生活に困っている様子なら、市の福祉の窓口（生活の相談）を案内できます</li>
+          </ol>
+        </div>
+        <ul class="alerts" id="alert-list"></ul>
+        <p class="muted small">知らせの記録は30日で消えます。記録するのは商品と時刻だけ。お客さんのことは書きません。</p>
+      </section>
+
+      <!-- 取りこみ -->
+      <section class="card" data-panel="import" hidden>
+        <h2>レジの表（CSV）を取りこむ</h2>
+        <p class="muted small">Excel やレジから出した CSV をそのまま使えます（UTF-8 でも Shift_JIS でも読めます）。</p>
+        <div class="import-grid">
+          <form class="import" data-kind="products">
+            <h3>商品の一覧</h3>
+            <p class="small">見出し：<code>JAN</code>・<code>商品名</code>（あれば <code>値段</code>・<code>発注点</code>）</p>
+            <input type="file" accept=".csv,text/csv" aria-label="商品の一覧の CSV">
+            <button class="btn" type="submit">取りこむ</button>
+            <a class="small" href="/samples/shohin.csv" download>見本の表</a>
+          </form>
+          <form class="import" data-kind="sales">
+            <h3>売れたもの</h3>
+            <p class="small">見出し：<code>JAN</code>・<code>数</code>。タグの付いた商品は、期限の近いものから「支払いずみ」に</p>
+            <input type="file" accept=".csv,text/csv" aria-label="売れたものの CSV">
+            <button class="btn" type="submit">取りこむ</button>
+            <a class="small" href="/samples/uriage.csv" download>見本の表</a>
+          </form>
+        </div>
+        <ul class="import-errors" id="import-errors"></ul>
+      </section>
+
+      <!-- 読み取り機のまね -->
+      <section class="card" data-panel="sim" hidden>
+        <h2>読み取り機のまね</h2>
+        <p class="muted small">本物の読み取り機（レジ・出口のゲート・棚卸し）がつながるまで、ここで「タグを読んだ」を起こせます。</p>
+        <label>商品 <select id="sim-product" class="product-select"></select></label>
+        <div class="sim-buttons">
+          <button type="button" class="btn" data-sim="register">🧾 レジで1つ読む</button>
+          <button type="button" class="btn ghost" data-sim="gate-paid">🚪 出口：支払いずみの1つが通る</button>
+          <button type="button" class="btn warn" data-sim="gate-unpaid">🚪 出口：支払いがまだの1つが通る</button>
+          <button type="button" class="btn ghost" data-sim="gate-other">🚪 出口：ほかのお店のタグが通る</button>
+          <button type="button" class="btn ghost" data-sim="count">📋 棚卸し：全部かざす（1つ読みのこし）</button>
+        </div>
+        <ul class="sim-log" id="sim-log" aria-live="polite"></ul>
+        <div class="reader-key" id="reader-key" hidden>
+          <h3>本物の読み取り機をつなぐとき（店長だけに見えます）</h3>
+          <p class="small">読み取り機から <code>POST /api/reader</code> に、<code>X-Reader-Key</code> の合言葉をつけて送ります。</p>
+          <pre><code id="reader-example"></code></pre>
+        </div>
+      </section>
+
+      <!-- スタッフ -->
+      <section class="card" data-panel="staff" hidden>
+        <h2>スタッフ</h2>
+        <ul class="staff" id="staff-list"></ul>
+      </section>
+      <p class="error" id="error" role="alert"></p>
+    </div>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
