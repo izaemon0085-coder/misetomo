@@ -59,12 +59,20 @@
           </table>
         </div>
         <p class="muted small">タグを貼っていない商品は数えません（タグは、ねらわれやすくて高い商品から貼るのがおすすめ）。</p>
+        <div class="shapes" id="shapes" hidden>
+          <h3>タグの形ごと</h3>
+          <table class="stock">
+            <thead><tr><th>形</th><th>在庫のタグ</th><th>前の棚卸しで読めた</th></tr></thead>
+            <tbody id="shapes-body"></tbody>
+          </table>
+        </div>
         <form class="inline-form" id="tag-form">
           <h3>シールを貼った</h3>
           <label>商品 <select name="jan" class="product-select" required></select></label>
           <label>枚数 <input name="count" type="number" min="1" max="500" value="5" required></label>
           <label>賞味期限 <input name="expiry" type="date"></label>
           <label>置き場所 <select name="place"><option>売り場</option><option>バックヤード</option></select></label>
+          <label>タグの形 <select name="shape" id="shape-select"></select></label>
           <button class="btn" type="submit">登録</button>
         </form>
         <form class="inline-form" id="discard-form">

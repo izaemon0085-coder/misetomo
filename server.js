@@ -7,7 +7,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createShop, HttpError, PLACES } from './shop.js';
+import { createShop, HttpError, PLACES, SHAPES } from './shop.js';
 
 const ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const PUBLIC = join(ROOT, 'public');
@@ -56,7 +56,7 @@ export function createApp({ tomohaneUrl = TOMOHANE_URL, linkSecret = LINK_SECRET
 
   const routes = [
     ['GET', '/api/health', () => ({ ok: true })],
-    ['GET', '/api/config', () => ({ tomohaneUrl, places: PLACES })],
+    ['GET', '/api/config', () => ({ tomohaneUrl, places: PLACES, shapes: SHAPES })],
     ['GET', '/api/state', ({ me }) => {
       if (!me) return null;
       const m = shop.member(me);

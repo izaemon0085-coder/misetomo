@@ -73,6 +73,7 @@ input[type="number"] { width: 6em; }
 
 .import-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
 .import { border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: grid; gap: 8px; justify-items: start; }
+.shapes { margin-top: 12px; }
 .import-errors { color: var(--warn); font-size: .9rem; }
 
 .sim-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }

@@ -17,6 +17,12 @@ export class HttpError extends Error {
 }
 
 export const PLACES = ['売り場', 'バックヤード'];
+// タグの形：中のアンテナさえ入っていれば、外側は自由。形ごとに「棚卸しでどれだけ読めたか」をヤマネコが見る
+export const SHAPES = {
+  seal: 'シール', hangtag: '値札・下げ札', ring: 'リング・バンド', button: '小さなボタン',
+  card: 'カード（本物証明）', chara: 'キャラの形', metal: '金属・水に強い型',
+};
+const shapeOf = (t) => t.shape ?? 'seal'; // 形を記録する前のタグはシール
 const ALERT_KEEP_MS = 30 * 86400000; // 知らせの記録は30日で消す
 const EXPIRY_SOON_DAYS = 3;
 const TAG_RE = /^[A-Za-z0-9:_-]{4,64}$/;
@@ -25,7 +31,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const say = (agent, text) => ({ agent, text });
 
 export function createShop({ file = null, now = () => Date.now() } = {}) {
-  const fresh = () => ({ shop: { name: 'わたしのお店', readerKey: randomBytes(18).toString('base64url') }, staff: {}, products: {}, tags: {}, alerts: [], waste: [] });
+  const fresh = () => ({ shop: { name: 'わたしのお店', readerKey: randomBytes(18).toString('base64url') }, staff: {}, products: {}, tags: {}, alerts: [], waste: [], shapeStats: {} });
   const state = file && existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : fresh();
   const listeners = new Set();
   const save = () => {
@@ -143,11 +149,12 @@ export function createShop({ file = null, now = () => Date.now() } = {}) {
 
   // ---- タグ ----
   // 新しいシールを貼った（β版：番号はここで作る）。本物の RFID シールは tagIds で番号をわたす
-  function addTags(by, { jan, count, tagIds, expiry = null, place = '売り場' }) {
+  function addTags(by, { jan, count, tagIds, expiry = null, place = '売り場', shape = 'seal' }) {
     requireStaff(by);
     productOf(jan);
     if (expiry !== null && expiry !== '' && !DATE_RE.test(expiry)) throw new HttpError(400, '賞味期限は 2026-11-30 の形で');
     if (!PLACES.includes(place)) throw new HttpError(400, '置き場所がちがいます');
+    if (!SHAPES[shape]) throw new HttpError(400, 'タグの形がちがいます');
     let ids = tagIds;
     if (!ids) {
       if (!Number.isInteger(count) || count < 1 || count > 500) throw new HttpError(400, '枚数は1〜500');
@@ -156,7 +163,7 @@ export function createShop({ file = null, now = () => Date.now() } = {}) {
     if (!Array.isArray(ids) || !ids.length || ids.length > 500 || !ids.every((x) => TAG_RE.test(x))) throw new HttpError(400, 'タグの番号が正しくありません');
     const dup = ids.filter((x) => state.tags[x]);
     if (dup.length) throw new HttpError(409, `もう登録されているタグがあります（${dup[0]}）`);
-    for (const tagId of ids) state.tags[tagId] = { tagId, jan, status: 'stock', expiry: expiry || null, place, addedAt: now(), seenAt: null };
+    for (const tagId of ids) state.tags[tagId] = { tagId, jan, status: 'stock', expiry: expiry || null, place, shape, addedAt: now(), seenAt: null };
     save();
     emit('update');
     return ids;
@@ -214,11 +221,24 @@ export function createShop({ file = null, now = () => Date.now() } = {}) {
         return { jan: p.jan, name: p.name, expected: stock.length, found: stock.filter((t) => seen.has(t.tagId)).length };
       }).filter((r) => r.expected > 0);
       const missing = report.reduce((n, r) => n + r.expected - r.found, 0);
+      // 形ごとの読めた割合（次の棚卸しまで覚えておく）
+      const shapes = {};
+      for (const t of Object.values(state.tags).filter((x) => x.status === 'stock')) {
+        const s = (shapes[shapeOf(t)] ??= { expected: 0, found: 0, at: now() });
+        s.expected++;
+        if (seen.has(t.tagId)) s.found++;
+      }
+      state.shapeStats = shapes;
+      const weak = Object.entries(shapes).filter(([, s]) => s.expected >= 5 && s.found / s.expected < 0.9);
       save();
       emit('update');
       return {
         report, missing,
-        lines: [say('shiba', `棚卸し、${seen.size}個かぞえ終わったっす！ おつかれさまっす！`), ...(missing ? [say('yamaneko', `見つからないタグが ${missing}個。置き場所ちがいか、読みのこしかもしれない。もう一度かざしてみよう。`)] : [])],
+        lines: [
+          say('shiba', `棚卸し、${seen.size}個かぞえ終わったっす！ おつかれさまっす！`),
+          ...(missing ? [say('yamaneko', `見つからないタグが ${missing}個。置き場所ちがいか、読みのこしかもしれない。もう一度かざしてみよう。`)] : []),
+          ...weak.map(([k, s]) => say('yamaneko', `「${SHAPES[k]}」のタグは ${s.expected}個のうち ${s.found}個しか読めなかった。この形は読みにくいのかもしれない。かざし方か、形を見直そう。`)),
+        ],
       };
     }
     throw new HttpError(400, '読み取り機の種類がちがいます');
@@ -263,6 +283,12 @@ export function createShop({ file = null, now = () => Date.now() } = {}) {
       me: { id: me.id, name: me.name, role: me.role },
       shop: { name: state.shop.name, readerKey: me.role === 'owner' ? state.shop.readerKey : undefined },
       products, lines, wasteThisMonth,
+      // 形ごと：いま在庫にあるタグの数と、前の棚卸しで読めた割合
+      shapes: Object.entries(SHAPES).map(([key, label]) => ({
+        key, label,
+        stock: Object.values(state.tags).filter((t) => t.status === 'stock' && shapeOf(t) === key).length,
+        lastCount: state.shapeStats?.[key] ?? null,
+      })).filter((s) => s.stock || s.lastCount),
       alerts: state.alerts.slice().reverse().slice(0, 50).map(({ tagIds, ...a }) => a),
       staff: me.role === 'owner' ? Object.values(state.staff).map(({ id, name, role }) => ({ id, name, role })) : undefined,
     };

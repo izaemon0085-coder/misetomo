@@ -131,3 +131,15 @@ test('ともはねでログイン → 表の取りこみ → 読み取り機は�
   assert.deepEqual(await (await fetch(`${base}/api/state`, { headers: { Cookie: c2 } })).json(), { me: { name: 'staff', role: 'waiting' } });
   assert.equal((await fetch(`${base}/api/export.csv`, { headers: { Cookie: c2 } })).status, 403);
 });
+
+test('タグの形：形ごとに棚卸しで読めた割合を出し、読みにくい形をヤマネコが知らせる', () => {
+  const { shop } = setup();
+  const seals = shop.addTags('m_owner', { jan: '4901234567894', count: 5 });
+  const metal = shop.addTags('m_owner', { jan: '4909876543210', count: 5, shape: 'metal' });
+  assert.throws(() => shop.addTags('m_owner', { jan: '4901234567894', count: 1, shape: 'ほし' }), /形/);
+  const r = shop.readerEvent('count', [...seals, ...metal.slice(0, 3)]);
+  assert.ok(r.lines.some((l) => l.agent === 'yamaneko' && /金属・水に強い型.*5個のうち 3個/.test(l.text)));
+  assert.ok(!r.lines.some((l) => /「シール」/.test(l.text)), 'よく読めた形は言わない');
+  const s = shop.overview('m_owner').shapes;
+  assert.deepEqual(s.map((x) => [x.key, x.stock, x.lastCount.found]), [['seal', 5, 5], ['metal', 5, 3]]);
+});

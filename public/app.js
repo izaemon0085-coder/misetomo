@@ -51,6 +51,12 @@ function render() {
       <td class="${p.expirySoon ? 'soon' : ''}">${esc(p.nextExpiry ?? '－')}</td>
       <td>${p.sold}</td>
     </tr>`).join('') || '<tr><td colspan="7" class="muted">まだ商品がありません。「表の取りこみ」から始めましょう</td></tr>';
+  $('#shapes').hidden = !state.shapes.length;
+  $('#shapes-body').innerHTML = state.shapes.map((s) => {
+    const c = s.lastCount;
+    const rate = c && c.expected ? Math.round((c.found / c.expected) * 100) : null;
+    return `<tr><td>${esc(s.label)}</td><td>${s.stock}</td><td class="${rate !== null && rate < 90 ? 'soon' : ''}">${c ? `${c.found}/${c.expected}（${rate}%）` : 'まだ'}</td></tr>`;
+  }).join('');
   const open = state.alerts.filter((a) => a.status === 'open');
   $('#alert-count').hidden = !open.length;
   $('#alert-count').textContent = open.length;
@@ -97,7 +103,7 @@ for (const t of $$('[role="tab"]')) t.addEventListener('click', () => showTab(t.
 $('#tag-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = new FormData(e.target);
-  if (await tryApi(() => api('tags', { jan: f.get('jan'), count: Number(f.get('count')), expiry: f.get('expiry') || null, place: f.get('place') }))) refresh();
+  if (await tryApi(() => api('tags', { jan: f.get('jan'), count: Number(f.get('count')), expiry: f.get('expiry') || null, place: f.get('place'), shape: f.get('shape') }))) refresh();
 });
 $('#discard-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -200,6 +206,7 @@ $('#banner-go').addEventListener('click', () => {
 });
 
 config = await api('config');
+$('#shape-select').innerHTML = Object.entries(config.shapes).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
 $('#signin-link').href = tomohaneUrl('/api/link/misetomo-start');
 $('#back').href = tomohaneUrl('/');
 await refresh();
